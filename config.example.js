@@ -1,4 +1,6 @@
-// Copy to config.js and fill in real values. config.js is gitignored.
+// Public defaults shipped with the web build / GitHub Pages.
+// For local overrides, copy to godot/web/config.js (gitignored) — export_web.sh
+// copies it next to index.html but builds/web/.gitignore keeps it out of deploy.
 window.GUILD_HOME_CONFIG = {
 	GOOGLE_CLIENT_ID: '',
 	DISCORD_CLIENT_ID: '',

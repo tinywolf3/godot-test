@@ -12,20 +12,33 @@
 			'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect fill="#2a2e38" width="64" height="64"/><circle cx="32" cy="24" r="12" fill="#5a6578"/><ellipse cx="32" cy="56" rx="20" ry="14" fill="#5a6578"/></svg>'
 		);
 
-	const cfg = Object.assign(
-		{
-			GOOGLE_CLIENT_ID: '',
-			DISCORD_CLIENT_ID: '',
-			DISCORD_REDIRECT_URI: '',
-			WS_URL: 'ws://127.0.0.1:8787/ws',
-			API_BASE: 'http://127.0.0.1:8787',
-			WIDGETBOT_SERVER_ID: '',
-			WIDGETBOT_CHANNEL_ID: '',
-		},
-		typeof window.GUILD_HOME_CONFIG === 'object' && window.GUILD_HOME_CONFIG
-			? window.GUILD_HOME_CONFIG
-			: {}
-	);
+	const CONFIG_DEFAULTS = {
+		GOOGLE_CLIENT_ID: '',
+		DISCORD_CLIENT_ID: '',
+		DISCORD_REDIRECT_URI: '',
+		WS_URL: 'ws://127.0.0.1:8787/ws',
+		API_BASE: 'http://127.0.0.1:8787',
+		WIDGETBOT_SERVER_ID: '',
+		WIDGETBOT_CHANNEL_ID: '',
+	};
+
+	/** Mutable; reapplied after optional config.js loads. */
+	const cfg = Object.assign({}, CONFIG_DEFAULTS);
+
+	function applyConfig() {
+		Object.keys(cfg).forEach(function (key) {
+			delete cfg[key];
+		});
+		Object.assign(
+			cfg,
+			CONFIG_DEFAULTS,
+			typeof window.GUILD_HOME_CONFIG === 'object' && window.GUILD_HOME_CONFIG
+				? window.GUILD_HOME_CONFIG
+				: {}
+		);
+	}
+
+	applyConfig();
 
 	let state = 'unauth';
 	let profile = null; // { provider, email, nickname, avatar_url }
@@ -427,6 +440,7 @@
 
 	function boot() {
 		if (!panel()) return;
+		applyConfig();
 		bindEvents();
 		const stored = loadStoredProfile();
 		if (stored) {
@@ -439,11 +453,21 @@
 		}
 	}
 
-	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', boot);
-	} else {
-		boot();
+	function startWhenReady() {
+		const ready =
+			window.__guildConfigReady && typeof window.__guildConfigReady.then === 'function'
+				? window.__guildConfigReady
+				: Promise.resolve();
+		ready.finally(function () {
+			if (document.readyState === 'loading') {
+				document.addEventListener('DOMContentLoaded', boot);
+			} else {
+				boot();
+			}
+		});
 	}
+
+	startWhenReady();
 
 	window.GuildHomeAuthChat = { renderState, notifyGodot, cfg };
 })();

@@ -217,7 +217,23 @@ html, body {
 			Your browser does not support JavaScript.
 		</noscript>
 
-		<script src="config.js"></script>
+		<!-- Public defaults ship with the build. Optional local config.js overrides them
+		     and is never required in the deploy repo (404 is ignored). -->
+		<script src="config.example.js"></script>
+		<script>
+		window.__guildConfigReady = fetch('config.js', { cache: 'no-store' })
+			.then(function (res) {
+				if (!res.ok) return null;
+				return res.text();
+			})
+			.then(function (code) {
+				if (!code) return;
+				var el = document.createElement('script');
+				el.text = code;
+				document.head.appendChild(el);
+			})
+			.catch(function () { /* optional */ });
+		</script>
 		<script src="auth_chat.js"></script>
 		<script src="https://accounts.google.com/gsi/client" async defer></script>
 		<script src="index.js"></script>
