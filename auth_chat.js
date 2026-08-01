@@ -198,24 +198,45 @@
 		wrap.appendChild(iframe);
 	}
 
+	function senderKey(msg) {
+		// Prefer stable identity fields; fall back to nickname for system / legacy payloads.
+		return [msg.provider || '', msg.email || '', msg.nickname || 'anon'].join('\0');
+	}
+
 	function appendMessage(msg) {
 		const list = document.getElementById('ac-messages');
 		if (!list) return;
+
+		const key = senderKey(msg);
+		const prev = list.lastElementChild;
+		const continued = !!(prev && prev.dataset && prev.dataset.sender === key);
+
 		const row = document.createElement('div');
-		row.className = 'ac-msg';
+		row.className = continued ? 'ac-msg ac-msg--continued' : 'ac-msg';
+		row.dataset.sender = key;
+
 		const img = document.createElement('img');
 		img.src = msg.avatar_url || DEFAULT_AVATAR;
 		img.alt = '';
+		if (continued) {
+			img.setAttribute('aria-hidden', 'true');
+		}
+
 		const body = document.createElement('div');
 		body.className = 'ac-msg-body';
-		const nick = document.createElement('div');
-		nick.className = 'ac-msg-nick';
-		nick.textContent = msg.nickname || 'anon';
+
+		if (!continued) {
+			const nick = document.createElement('div');
+			nick.className = 'ac-msg-nick';
+			nick.textContent = msg.nickname || 'anon';
+			body.appendChild(nick);
+		}
+
 		const text = document.createElement('div');
 		text.className = 'ac-msg-text';
 		text.textContent = msg.text || '';
-		body.appendChild(nick);
 		body.appendChild(text);
+
 		row.appendChild(img);
 		row.appendChild(body);
 		list.appendChild(row);
@@ -276,6 +297,8 @@
 				}
 				if (data.type === 'chat' || data.text) {
 					appendMessage({
+						provider: data.provider || '',
+						email: data.email || '',
 						nickname: data.nickname || 'anon',
 						avatar_url: data.avatar_url || DEFAULT_AVATAR,
 						text: data.text || '',
