@@ -249,11 +249,15 @@ const MIN_GAME = 240;
 const MIN_PANEL_KEYBOARD = 148;
 const MIN_GAME_KEYBOARD = 120;
 const MAX_BACKBUFFER = 1440;
+/** Viewport must shrink by at least this much vs the resting size to count as a soft keyboard. */
 const KEYBOARD_GAP_PX = 120;
 
 const gameEl = document.getElementById('game');
 const canvas = document.getElementById('canvas');
 const chatEl = document.getElementById('chat');
+
+/** Largest known "keyboard closed" height; used when Android resizes the layout viewport itself. */
+let restingHeight = Math.max(window.innerHeight || 0, window.documentElement.clientHeight || 0);
 
 function applyBox(el, left, top, width, height) {
 	el.style.left = left + 'px';
@@ -281,19 +285,23 @@ function viewportBox() {
 }
 
 function isSoftKeyboardOpen(vh) {
-	const focused = document.activeElement;
-	const editing =
-		focused &&
-		(focused.tagName === 'INPUT' ||
-			focused.tagName === 'TEXTAREA' ||
-			focused.isContentEditable);
-	if (!editing) {
-		return false;
+	const layoutH = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0);
+	const visibleH = Math.min(vh, layoutH || vh);
+	if (layoutH - visibleH > KEYBOARD_GAP_PX) {
+		return true;
 	}
-	// Android Chrome with interactive-widget=resizes-content shrinks visualViewport;
-	// iOS often keeps innerHeight large while visualViewport shrinks / pans.
-	const layoutH = window.innerHeight || vh;
-	return layoutH - vh > KEYBOARD_GAP_PX || editing;
+	if (restingHeight > 0 && restingHeight - visibleH > KEYBOARD_GAP_PX) {
+		return true;
+	}
+	return false;
+}
+
+function noteRestingHeight(vh, keyboard) {
+	if (keyboard) {
+		return;
+	}
+	// Ignore transient focus without a real shrink; grow the baseline on rotate / desktop resize.
+	restingHeight = Math.max(restingHeight, vh, window.innerHeight || 0);
 }
 
 function layout() {
@@ -301,6 +309,7 @@ function layout() {
 	const vw = box.w;
 	const vh = box.h;
 	const keyboard = isSoftKeyboardOpen(vh);
+	noteRestingHeight(vh, keyboard);
 	const minPanel = keyboard ? MIN_PANEL_KEYBOARD : MIN_PANEL;
 	const minGame = keyboard ? MIN_GAME_KEYBOARD : MIN_GAME;
 	let gameW;
@@ -383,10 +392,14 @@ function scheduleLayout() {
 
 layout();
 window.addEventListener('resize', scheduleLayout);
-window.addEventListener('orientationchange', scheduleLayout);
+window.addEventListener('orientationchange', function () {
+	// Rotation changes the resting baseline; clear so we re-learn it.
+	restingHeight = 0;
+	scheduleLayout();
+	setTimeout(scheduleLayout, 300);
+});
 window.addEventListener('focusin', scheduleLayout);
 window.addEventListener('focusout', function () {
-	// iOS closes the keyboard after a short animation.
 	setTimeout(scheduleLayout, 50);
 	setTimeout(scheduleLayout, 300);
 });

@@ -206,21 +206,6 @@
 	background: #0e1117;
 }
 
-/* Soft keyboard: keep the input row, drop chrome that eats vertical space. */
-body.keyboard-open .ac-header,
-body.keyboard-open .ac-messages {
-	display: none;
-}
-
-body.keyboard-open .ac-composer {
-	border-top: none;
-	padding: 0.5rem 0.65rem;
-}
-
-body.keyboard-open .ac-composer-profile {
-	display: none;
-}
-
 .ac-composer-profile {
 	display: flex;
 	align-items: center;
