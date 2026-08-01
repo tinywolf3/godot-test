@@ -257,7 +257,7 @@ const canvas = document.getElementById('canvas');
 const chatEl = document.getElementById('chat');
 
 /** Largest known "keyboard closed" height; used when Android resizes the layout viewport itself. */
-let restingHeight = Math.max(window.innerHeight || 0, window.documentElement.clientHeight || 0);
+let restingHeight = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0);
 
 function applyBox(el, left, top, width, height) {
 	el.style.left = left + 'px';
