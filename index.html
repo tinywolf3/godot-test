@@ -2,7 +2,7 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
 		<title>guild home</title>
 		<link rel="stylesheet" href="auth_chat.css">
 		<style>
@@ -12,7 +12,12 @@ html, body {
 	border: 0;
 	width: 100%;
 	height: 100%;
+	height: 100dvh;
 	overflow: hidden;
+	overscroll-behavior: none;
+	/* Keep the document pinned so the soft keyboard resizes instead of panning. */
+	position: fixed;
+	inset: 0;
 	color: white;
 	background-color: #0b0c10;
 }
@@ -240,7 +245,11 @@ html, body {
 		<script>
 const MIN_PANEL = 320;
 const MIN_GAME = 240;
+/** When the soft keyboard is open, keep the composer usable even if the game shrinks. */
+const MIN_PANEL_KEYBOARD = 148;
+const MIN_GAME_KEYBOARD = 120;
 const MAX_BACKBUFFER = 1440;
+const KEYBOARD_GAP_PX = 120;
 
 const gameEl = document.getElementById('game');
 const canvas = document.getElementById('canvas');
@@ -253,9 +262,47 @@ function applyBox(el, left, top, width, height) {
 	el.style.height = height + 'px';
 }
 
+function viewportBox() {
+	const vv = window.visualViewport;
+	if (vv) {
+		return {
+			w: Math.max(1, Math.round(vv.width)),
+			h: Math.max(1, Math.round(vv.height)),
+			ox: Math.round(vv.offsetLeft),
+			oy: Math.round(vv.offsetTop),
+		};
+	}
+	return {
+		w: window.innerWidth,
+		h: window.innerHeight,
+		ox: 0,
+		oy: 0,
+	};
+}
+
+function isSoftKeyboardOpen(vh) {
+	const focused = document.activeElement;
+	const editing =
+		focused &&
+		(focused.tagName === 'INPUT' ||
+			focused.tagName === 'TEXTAREA' ||
+			focused.isContentEditable);
+	if (!editing) {
+		return false;
+	}
+	// Android Chrome with interactive-widget=resizes-content shrinks visualViewport;
+	// iOS often keeps innerHeight large while visualViewport shrinks / pans.
+	const layoutH = window.innerHeight || vh;
+	return layoutH - vh > KEYBOARD_GAP_PX || editing;
+}
+
 function layout() {
-	const vw = window.innerWidth;
-	const vh = window.innerHeight;
+	const box = viewportBox();
+	const vw = box.w;
+	const vh = box.h;
+	const keyboard = isSoftKeyboardOpen(vh);
+	const minPanel = keyboard ? MIN_PANEL_KEYBOARD : MIN_PANEL;
+	const minGame = keyboard ? MIN_GAME_KEYBOARD : MIN_GAME;
 	let gameW;
 	let gameH;
 	let chatLeft;
@@ -264,14 +311,14 @@ function layout() {
 	let chatH;
 
 	if (vw >= vh) {
-		if (vw - vh >= MIN_PANEL) {
+		if (vw - vh >= minPanel) {
 			gameW = gameH = vh;
 			chatLeft = vh;
 			chatTop = 0;
 			chatW = vw - vh;
 			chatH = vh;
 		} else {
-			chatW = Math.min(MIN_PANEL, Math.max(0, vw - MIN_GAME));
+			chatW = Math.min(minPanel, Math.max(0, vw - minGame));
 			gameW = vw - chatW;
 			gameH = vh;
 			chatLeft = gameW;
@@ -281,14 +328,14 @@ function layout() {
 		chatEl.classList.add('chat--right');
 		chatEl.classList.remove('chat--bottom');
 	} else {
-		if (vh - vw >= MIN_PANEL) {
+		if (vh - vw >= minPanel) {
 			gameW = gameH = vw;
 			chatLeft = 0;
 			chatTop = vw;
 			chatW = vw;
 			chatH = vh - vw;
 		} else {
-			chatH = Math.min(MIN_PANEL, Math.max(0, vh - MIN_GAME));
+			chatH = Math.min(minPanel, Math.max(0, vh - minGame));
 			gameH = vh - chatH;
 			gameW = vw;
 			chatLeft = 0;
@@ -299,8 +346,14 @@ function layout() {
 		chatEl.classList.remove('chat--right');
 	}
 
-	applyBox(gameEl, 0, 0, gameW, gameH);
-	applyBox(chatEl, chatLeft, chatTop, chatW, chatH);
+	// Anchor to the visual viewport so a keyboard pan does not cover the game.
+	applyBox(gameEl, box.ox, box.oy, gameW, gameH);
+	applyBox(chatEl, box.ox + chatLeft, box.oy + chatTop, chatW, chatH);
+	document.body.classList.toggle('keyboard-open', keyboard);
+
+	if (window.scrollX || window.scrollY) {
+		window.scrollTo(0, 0);
+	}
 
 	const dpr = window.devicePixelRatio || 1;
 	let bw = Math.max(1, Math.round(gameW * dpr));
@@ -317,9 +370,30 @@ function layout() {
 	}
 }
 
+let layoutRaf = 0;
+function scheduleLayout() {
+	if (layoutRaf) {
+		return;
+	}
+	layoutRaf = requestAnimationFrame(function () {
+		layoutRaf = 0;
+		layout();
+	});
+}
+
 layout();
-window.addEventListener('resize', layout);
-window.addEventListener('orientationchange', layout);
+window.addEventListener('resize', scheduleLayout);
+window.addEventListener('orientationchange', scheduleLayout);
+window.addEventListener('focusin', scheduleLayout);
+window.addEventListener('focusout', function () {
+	// iOS closes the keyboard after a short animation.
+	setTimeout(scheduleLayout, 50);
+	setTimeout(scheduleLayout, 300);
+});
+if (window.visualViewport) {
+	window.visualViewport.addEventListener('resize', scheduleLayout);
+	window.visualViewport.addEventListener('scroll', scheduleLayout);
+}
 
 const GODOT_CONFIG = {"args":[],"canvasResizePolicy":0,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":51526596,"index.wasm":39513091},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
